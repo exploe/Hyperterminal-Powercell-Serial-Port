@@ -1,0 +1,175 @@
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+$global:sp = $null
+$global:job = $null
+
+function serial {
+
+    # ================= FORM =================
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Exploe – Timbangan Client"
+    $form.Size = New-Object System.Drawing.Size(420,380)
+    $form.StartPosition = "CenterScreen"
+
+    # ================= COM PORT =================
+    $lblPort = New-Object System.Windows.Forms.Label
+    $lblPort.Text = "COM Port"
+    $lblPort.Location = "20,20"
+
+    $cbPort = New-Object System.Windows.Forms.ComboBox
+    $cbPort.Location = "120,18"
+    $cbPort.Width = 250
+    $cbPort.DropDownStyle = "DropDownList"
+    $cbPort.Items.AddRange([System.IO.Ports.SerialPort]::GetPortNames())
+    if ($cbPort.Items.Count -gt 0) { $cbPort.SelectedIndex = 0 }
+
+    # ================= PRESET =================
+    $lblPreset = New-Object System.Windows.Forms.Label
+    $lblPreset.Text = "Preset"
+    $lblPreset.Location = "20,60"
+
+    $cbPreset = New-Object System.Windows.Forms.ComboBox
+    $cbPreset.Location = "120,58"
+    $cbPreset.Width = 250
+    $cbPreset.DropDownStyle = "DropDownList"
+    $cbPreset.Items.AddRange(@("Terkecil","Lengkap (Default)","Tertinggi"))
+    $cbPreset.SelectedIndex = 1
+
+    # ================= BAUD =================
+    $lblBaud = New-Object System.Windows.Forms.Label
+    $lblBaud.Text = "Baudrate"
+    $lblBaud.Location = "20,100"
+
+    $cbBaud = New-Object System.Windows.Forms.ComboBox
+    $cbBaud.Location = "120,98"
+    $cbBaud.Width = 250
+    $cbBaud.Items.AddRange(@("1200","2400","4800","9600","19200","38400","57600","115200"))
+    $cbBaud.Text = "9600"
+
+    # ================= PARITY =================
+    $lblParity = New-Object System.Windows.Forms.Label
+    $lblParity.Text = "Parity"
+    $lblParity.Location = "20,140"
+
+    $cbParity = New-Object System.Windows.Forms.ComboBox
+    $cbParity.Location = "120,138"
+    $cbParity.Width = 250
+    $cbParity.Items.AddRange(@("None","Odd","Even","Mark","Space"))
+    $cbParity.Text = "None"
+
+    # ================= DATABITS =================
+    $lblData = New-Object System.Windows.Forms.Label
+    $lblData.Text = "Data Bits"
+    $lblData.Location = "20,180"
+
+    $cbData = New-Object System.Windows.Forms.ComboBox
+    $cbData.Location = "120,178"
+    $cbData.Width = 250
+    $cbData.Items.AddRange(@("7","8"))
+    $cbData.Text = "8"
+
+    # ================= STOPBITS =================
+    $lblStop = New-Object System.Windows.Forms.Label
+    $lblStop.Text = "Stop Bits"
+    $lblStop.Location = "20,220"
+
+    $cbStop = New-Object System.Windows.Forms.ComboBox
+    $cbStop.Location = "120,218"
+    $cbStop.Width = 250
+    $cbStop.Items.AddRange(@("One","Two"))
+    $cbStop.Text = "One"
+
+    # ================= OUTPUT =================
+    $txt = New-Object System.Windows.Forms.TextBox
+    $txt.Multiline = $true
+    $txt.ReadOnly = $true
+    $txt.ScrollBars = "Vertical"
+    $txt.Location = "20,260"
+    $txt.Size = "350,60"
+
+    # ================= BUTTON =================
+    $btnOpen = New-Object System.Windows.Forms.Button
+    $btnOpen.Text = "Buka COM"
+    $btnOpen.Location = "20,330"
+    $btnOpen.Width = 150
+
+    $btnClose = New-Object System.Windows.Forms.Button
+    $btnClose.Text = "Tutup COM"
+    $btnClose.Location = "220,330"
+    $btnClose.Width = 150
+
+    # ================= PRESET LOGIC =================
+    $cbPreset.Add_SelectedIndexChanged({
+        switch ($cbPreset.Text) {
+            "Terkecil" {
+                $cbBaud.Text = "1200"
+                $cbParity.Text = "None"
+                $cbData.Text = "7"
+                $cbStop.Text = "One"
+            }
+            "Lengkap (Default)" {
+                $cbBaud.Text = "9600"
+                $cbParity.Text = "None"
+                $cbData.Text = "8"
+                $cbStop.Text = "One"
+            }
+            "Tertinggi" {
+                $cbBaud.Text = "115200"
+                $cbParity.Text = "None"
+                $cbData.Text = "8"
+                $cbStop.Text = "One"
+            }
+        }
+    })
+
+    # ================= OPEN =================
+    $btnOpen.Add_Click({
+        try {
+            $global:sp = New-Object System.IO.Ports.SerialPort `
+                $cbPort.Text,
+                [int]$cbBaud.Text,
+                ([System.IO.Ports.Parity]::$($cbParity.Text)),
+                [int]$cbData.Text,
+                ([System.IO.Ports.StopBits]::$($cbStop.Text))
+
+            $global:sp.Open()
+
+            $global:job = Start-Job {
+                param($sp,$txt)
+                while ($sp.IsOpen) {
+                    try {
+                        $d = $sp.ReadLine()
+                        $txt.Invoke([action]{ $txt.AppendText("⚖️ $d`r`n") })
+                    } catch {}
+                }
+            } -ArgumentList $global:sp,$txt
+
+            $txt.AppendText("📡 Port dibuka`r`n")
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show($_)
+        }
+    })
+
+    # ================= CLOSE =================
+    $btnClose.Add_Click({
+        if ($global:sp -and $global:sp.IsOpen) {
+            $global:sp.Close()
+            Stop-Job $global:job -Force
+            $txt.AppendText("🔴 Port ditutup`r`n")
+        }
+    })
+
+    $form.Controls.AddRange(@(
+        $lblPort,$cbPort,
+        $lblPreset,$cbPreset,
+        $lblBaud,$cbBaud,
+        $lblParity,$cbParity,
+        $lblData,$cbData,
+        $lblStop,$cbStop,
+        $txt,$btnOpen,$btnClose
+    ))
+
+    $form.ShowDialog()
+}
