@@ -8,7 +8,7 @@ Membaca timbangan / device serial, menampilkan hasil bersih, dan realtime.
 - Pilih COM port, baudrate, parity, data bits, stop bits
 - Output bersih: hanya angka (minus diperbolehkan) + Kg
 - GUI dark theme
-- Tombol WhatsApp +6281382203380
+- Tombol WhatsApp 
 - Footer copyright: © Xload Software
 
 ## Telemetry
